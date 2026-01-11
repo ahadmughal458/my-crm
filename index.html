@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CRM Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
+    .container { max-width: 450px; margin: auto; }
+    .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); display: none; }
+    .active { display: block; }
+    
+    h2 { text-align: center; margin-top: 0; }
+    input, textarea, button { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 16px; }
+    button { background: #4f46e5; color: white; border: none; font-weight: 600; cursor: pointer; }
+    button:disabled { background: #94a3b8; }
+    
+    /* Login Screen */
+    #loginScreen { height: 100vh; display: flex; align-items: center; justify-content: center; }
+    #loginCard { display: block; width: 100%; max-width: 350px; }
+
+    /* List Items */
+    .record { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+    .record h4 { margin: 0 0 5px 0; font-size: 16px; color: #1e293b; }
+    .record p { margin: 0; font-size: 13px; color: #64748b; }
+    
+    /* Checkbox */
+    .status-btn { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+    .called { background: #22c55e; border-color: #22c55e; color: white; }
+
+    /* Bottom Nav */
+    .nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid #e2e8f0; display: flex; padding: 10px 0; z-index: 100;}
+    .nav-item { flex: 1; text-align: center; font-size: 12px; color: #94a3b8; cursor: pointer; }
+    .nav-item.active-nav { color: #4f46e5; font-weight: bold; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div id="loginScreen">
+    <div id="loginCard" class="card active">
+      <h2>Team Login</h2>
+      <p style="text-align:center; color:#666; font-size:0.9rem;">Please sign in to continue</p>
+      <form id="loginForm">
+        <input type="text" id="user" placeholder="Username" required>
+        <input type="password" id="pass" placeholder="Password" required>
+        <button type="submit" id="loginBtn">Login</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="appContainer" class="container hidden" style="padding-bottom: 60px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="margin:0;">Hi, <span id="displayUser"></span> 👋</h3>
+      <button onclick="logout()" style="width:auto; padding:5px 10px; font-size:12px; background:#ef4444; margin:0;">Logout</button>
+    </div>
+
+    <div id="view-add" class="card active">
+      <h3>Add New Client</h3>
+      <form id="addForm">
+        <input type="text" id="company" placeholder="Company Name" required>
+        <input type="text" id="city" placeholder="City" required>
+        <input type="text" id="country" placeholder="Country" required>
+        <input type="text" id="whatsapp" placeholder="WhatsApp (e.g. +92300...)" required>
+        <textarea id="message" placeholder="Message History" required></textarea>
+        <button type="submit" id="saveBtn">Save Record</button>
+      </form>
+    </div>
+
+    <div id="view-records" class="card">
+      <h3>My Records</h3>
+      <button onclick="loadRecords()" style="background:#f1f5f9; color:#333; border:1px solid #ddd; margin-bottom:15px;">Refresh List ↻</button>
+      <div id="list">Loading...</div>
+    </div>
+
+    <div id="view-admin" class="card">
+      <h3>Admin Panel</h3>
+      <p>Add new team member:</p>
+      <form id="adminForm">
+        <input type="text" id="newUser" placeholder="New Username" required>
+        <input type="password" id="newPass" placeholder="New Password" required>
+        <button type="submit" style="background:#10b981;">Create User</button>
+      </form>
+    </div>
+
+    <div class="nav">
+      <div class="nav-item active-nav" onclick="switchTab('add', this)">
+        <div style="font-size:18px;">+</div>ADD DATA
+      </div>
+      <div class="nav-item" onclick="switchTab('records', this)">
+        <div style="font-size:18px;">≡</div>MY RECORDS
+      </div>
+      <div class="nav-item hidden" id="nav-admin" onclick="switchTab('admin', this)">
+        <div style="font-size:18px;">⚡</div>ADMIN
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ------------------------------------------
+  // ✅ YOUR SPECIFIC URL IS NOW CONFIGURED BELOW:
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKYpbXhsoLjYZEHVXASUz4Z1lU2D59qZI_c3WRCkTEGXCSIBZPWvM5Q-mJ-WnMe_R8/exec"; 
+  // ------------------------------------------
+
+  let currentUser = localStorage.getItem('user');
+  let currentRole = localStorage.getItem('role');
+
+  // Auto-login if saved
+  if(currentUser) initApp();
+
+  // LOGIN
+  document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    btn.textContent = "Checking...";
+    btn.disabled = true;
+
+    postData({ action: "login", username: document.getElementById('user').value, password: document.getElementById('pass').value })
+    .then(data => {
+      if(data.success) {
+        localStorage.setItem('user', data.username);
+        localStorage.setItem('role', data.role);
+        currentUser = data.username;
+        currentRole = data.role;
+        initApp();
+      } else {
+        alert("❌ " + data.msg);
+      }
+    })
+    .catch(err => alert("Connection Failed. Check URL or Permissions."))
+    .finally(() => { btn.textContent = "Login"; btn.disabled = false; });
+  });
+
+  function initApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appContainer').classList.remove('hidden');
+    document.getElementById('displayUser').textContent = currentUser;
+    if(currentRole === 'super_admin') document.getElementById('nav-admin').classList.remove('hidden');
+  }
+
+  function logout() { localStorage.clear(); location.reload(); }
+
+  // SAVE DATA
+  document.getElementById('addForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('saveBtn');
+    btn.textContent = "Saving...";
+    btn.disabled = true;
+
+    const data = {
+      action: "saveData",
+      username: currentUser,
+      company: document.getElementById('company').value,
+      city: document.getElementById('city').value,
+      country: document.getElementById('country').value,
+      whatsapp: document.getElementById('whatsapp').value,
+      message: document.getElementById('message').value
+    };
+
+    postData(data).then(res => {
+      alert("✅ Saved Successfully!");
+      document.getElementById('addForm').reset();
+    }).finally(() => { btn.textContent = "Save Record"; btn.disabled = false; });
+  });
+
+  // LOAD RECORDS
+  function loadRecords() {
+    const list = document.getElementById('list');
+    list.innerHTML = "Fetching...";
+    
+    fetch(`${SCRIPT_URL}?username=${currentUser}`)
+    .then(res => res.json())
+    .then(data => {
+      list.innerHTML = "";
+      if(data.length === 0) { list.innerHTML = "<p style='text-align:center; color:#999'>No records found.</p>"; return; }
+      
+      data.reverse().forEach(item => {
+        const isCalled = item.status === "Called";
+        list.innerHTML += `
+          <div class="record">
+            <div><h4>${item.company}</h4><p>${item.whatsapp}</p></div>
+            <div class="status-btn ${isCalled ? 'called' : ''}" onclick="toggle('${item.whatsapp}', this)">
+              ${isCalled ? '✓' : ''}
+            </div>
+          </div>`;
+      });
+    });
+  }
+
+  // TOGGLE STATUS
+  window.toggle = function(whatsapp, el) {
+    const isCalled = el.classList.contains('called');
+    
+    // UI Update immediately
+    el.classList.toggle('called');
+    el.innerHTML = isCalled ? '' : '✓'; 
+    
+    // Background Update
+    postData({ action: "updateStatus", whatsapp: whatsapp, username: currentUser, status: isCalled ? "Not Called" : "Called" });
+  };
+
+  // ADD ADMIN
+  document.getElementById('adminForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    postData({ action: "addAdmin", newUser: document.getElementById('newUser').value, newPass: document.getElementById('newPass').value })
+    .then(res => { 
+        if(res.success) { alert("✅ Admin Added!"); document.getElementById('adminForm').reset(); }
+        else { alert("❌ Error: " + res.msg); }
+    });
+  });
+
+  // UTILS
+  function switchTab(tab, el) {
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    document.getElementById('view-' + tab).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active-nav'));
+    el.classList.add('active-nav');
+    if(tab === 'records') loadRecords();
+  }
+
+  function postData(data) {
+    return fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Content-Type": "text/plain" } 
+    }).then(res => res.json());
+  }
+</script>
+
+</body>
+</html>
